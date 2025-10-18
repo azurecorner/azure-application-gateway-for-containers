@@ -1,0 +1,20 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: nginx-gw
+  namespace: test-infra
+  annotations:
+    alb.networking.azure.io/alb-id: '/subscriptions/023b2039-5c23-44b8-844e-c002f8ed431d/resourceGroups/DatasynchroTask-RG/providers/Microsoft.ServiceNetworking/trafficControllers/JacksAGC'
+
+spec:
+  gatewayClassName: azure-alb-external
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+  addresses:
+  - type: alb.networking.azure.io/alb-frontend
+    value: 'nginx-frontend'
