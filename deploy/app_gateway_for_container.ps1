@@ -153,3 +153,28 @@ kubectl get httproute traffic-split-route -n $HELM_NAMESPACE -o yaml
 
 
 $fqdn=$(kubectl get gateway gateway-01 -n $HELM_NAMESPACE -o jsonpath='{.status.addresses[0].value}')
+
+# Get FQDN of Gateway
+
+# Continuously test HTTP endpoint
+while ($true) {
+    try {
+        $resp = Invoke-WebRequest "http://$fqdn" -UseBasicParsing -ErrorAction Stop
+        Write-Host "Status: $($resp.StatusCode)" -ForegroundColor Green
+        Write-Host $resp.Content
+    } catch {
+        Write-Host "Error accessing $fqdn" -ForegroundColor Red
+    }
+    Start-Sleep 5
+    Clear-Host
+}
+
+kubectl get pods -n $CONTROLLER_NAMESPACE --show-labels
+
+
+kubectl logs -n $CONTROLLER_NAMESPACE -l app=alb-controller
+
+
+kubectl logs -n $HELM_NAMESPACE -l app=backend-v1
+
+kubectl logs -n $HELM_NAMESPACE -l app=backend-v2
