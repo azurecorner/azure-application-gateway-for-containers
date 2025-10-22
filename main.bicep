@@ -170,7 +170,6 @@ resource managedClusters_datasynchro_aks_resource 'Microsoft.ContainerService/ma
     oidcIssuerProfile: {
       enabled: true
     }
-
   }
 }
 
