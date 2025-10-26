@@ -1,3 +1,27 @@
+
+az deployment group validate `
+  --resource-group RG-APPLICATION-GATEWAY-FOR-CONTAINER `
+  --template-file main.bicep `
+  --parameters main.bicepparam `
+  --verbose
+
+
+
+$resourceGroupName="RG-APPLICATION-GATEWAY-FOR-CONTAINER"
+
+New-AzResourceGroupDeployment `
+  -Name "datasynchro-appgw-container" `
+  -ResourceGroupName $resourceGroupName `
+  -TemplateFile main.bicep `
+  -TemplateParameterFile main.bicepparam `
+  -DeploymentDebugLogLevel All `
+  -WhatIf
+
+
+
+# run bicep
+
+
 $resourceGroupName="RG-APPLICATION-GATEWAY-FOR-CONTAINER"
 
 New-AzResourceGroupDeployment `

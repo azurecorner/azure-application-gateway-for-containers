@@ -18,8 +18,11 @@ param workspaceId string
 ])
 param sku string = 'Premium'
 
+
+param kubeletidentityObjectId string
+
 @description('Specifies the location.')
-param location string = resourceGroup().location
+param location string 
 
 @description('Specifies the resource tags.')
 param tags object
@@ -72,6 +75,19 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
     metrics: metrics
   }
 } 
+
+ resource acrKubeletAcrPullRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: containerRegistry
+  name: guid(containerRegistry.id,kubeletidentityObjectId,'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')  //
+    description: 'Allows AKS to pull container images from this ACR instance.'
+    principalId: kubeletidentityObjectId //managedClusters_datasynchro_aks_resource.properties.identityProfile.kubeletidentity.objectId
+    principalType: 'ServicePrincipal'
+  }
+ 
+} 
+
 // Outputs
 output id string = containerRegistry.id
 output name string = containerRegistry.name
