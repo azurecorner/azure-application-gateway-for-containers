@@ -4,3 +4,6 @@ main_arm.bicep
 /src/ReferenceApp/WebApi/obj
 /src/ReferenceApp/WebApp/bin/Debug/net9.0
 /src/ReferenceApp/WebApp/obj
+src/ReferenceApp/.vs/ProjectEvaluation/referenceapp.metadata.v9.bin
+src/ReferenceApp/.vs/ProjectEvaluation/referenceapp.projects.v9.bin
+src/ReferenceApp/.vs/ProjectEvaluation/referenceapp.strings.v9.bin

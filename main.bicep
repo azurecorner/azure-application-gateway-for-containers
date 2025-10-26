@@ -89,6 +89,9 @@ module gateway 'modules/gateway.bicep' = {
      userManagedIdentityprincipalId: userAssignedIdentities_azure_alb_identity_resource.properties.principalId
   
   }
+  dependsOn: [
+    kubernetes
+  ]
 }
  
 resource userAssignedIdentities_azure_alb_identity_name_userAssignedIdentities_azure_alb_identity_name 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = {

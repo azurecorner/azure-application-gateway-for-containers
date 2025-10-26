@@ -19,6 +19,7 @@ kubectl get pods -n $HELM_NAMESPACE
 
 kubectl get svc -n $HELM_NAMESPACE
 
+# kubectl rollout restart deployment alb-controller -n $CONTROLLER_NAMESPACE
 
  $RESOURCE_ID=$(az network alb show --resource-group $RESOURCE_GROUP --name $RESOURCE_NAME --query id -o tsv)
 
@@ -60,59 +61,12 @@ spec:
  kubectl get pods -n $HELM_NAMESPACE -o wide
 
 
-
-
  $fqdn=$(kubectl get gateway gateway-01 -n $HELM_NAMESPACE -o jsonpath='{.status.addresses[0].value}')
 
  Write-Host "fqdn=$fqdn"
 
  $resp = Invoke-WebRequest "http://$fqdn/webapp/" -UseBasicParsing -ErrorAction Stop
+        Write-Host "Status: $($resp.StatusCode)" -ForegroundColor Green
+        Write-Host $resp.Content
 
 
- kubectl rollout restart deployment alb-controller -n azure-alb-system
-
-# @"
-# apiVersion: gateway.networking.k8s.io/v1
-# kind: HTTPRoute
-# metadata:
-#   name: traffic-split-route
-#   namespace: $HELM_NAMESPACE
-# spec:
-#   parentRefs:
-#   - name: gateway-01
-#   rules:
-#   - backendRefs:
-#     - name: backend-v1
-#       port: 8080
-#       weight: 50
-#     - name: backend-v2
-#       port: 8080
-#       weight: 50
-# "@ | kubectl apply -f -
-
-
-# kubectl get httproute traffic-split-route -n $HELM_NAMESPACE -o yaml
-
-
-# $fqdn=$(kubectl get gateway gateway-01 -n $HELM_NAMESPACE -o jsonpath='{.status.addresses[0].value}')
-
-# # Continuously test HTTP endpoint
-# while ($true) {
-#     try {
-#         $resp = Invoke-WebRequest "http://$fqdn" -UseBasicParsing -ErrorAction Stop
-#         Write-Host "Status: $($resp.StatusCode)" -ForegroundColor Green
-#         Write-Host $resp.Content
-#     } catch {
-#         Write-Host "Error accessing $fqdn" -ForegroundColor Red
-#     }
-#     Start-Sleep 5
-#     Clear-Host
-# }
-
-# kubectl get pods -n $CONTROLLER_NAMESPACE --show-labels
-
-# kubectl logs -n $CONTROLLER_NAMESPACE -l app=alb-controller
-
-# kubectl logs -n $HELM_NAMESPACE -l app=backend-v1
-
-# kubectl logs -n $HELM_NAMESPACE -l app=backend-v2
