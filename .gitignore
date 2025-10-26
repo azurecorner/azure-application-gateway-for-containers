@@ -1,1 +1,6 @@
 main_arm.bicep
+/src/ReferenceApp/.vs/ReferenceApp
+/src/ReferenceApp/WebApi/bin/Debug/net9.0
+/src/ReferenceApp/WebApi/obj
+/src/ReferenceApp/WebApp/bin/Debug/net9.0
+/src/ReferenceApp/WebApp/obj
