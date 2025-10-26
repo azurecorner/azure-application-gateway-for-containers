@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapi-service
+  namespace: azure-resources
+  labels:
+    app: webapi
+
+spec:
+  selector:
+    app: webapi
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: ClusterIP
+

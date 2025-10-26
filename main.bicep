@@ -2,6 +2,20 @@ param virtualNetworks_datasynchro_vnet_name string = 'datasynchro_vnet'
 param trafficControllers_alb_name string = 'datasynchro_alb'
 param managedClusters_datasynchro_aks_name string = 'datasynchro-aks'
 param userAssignedIdentities_azure_alb_identity_name string = 'azure_alb_identity'
+@description('The list of AAD group object IDs that will have admin role of the cluster.')
+param adminGroupObjectIDs array =['7abf4c5b-9638-4ec4-b830-ede0a8031b25']
+@description('Name of your Azure Container Registry')
+param  containerRegistryName string
+@description('Tier of your Azure Container Registry.')
+param  containerRegistrySku string
+
+param location string = resourceGroup().location
+
+param logAnalyticsWorkspaceName string
+
+@description('Specifies the name of the container registry.')
+param tags object 
+
 
 resource userAssignedIdentities_azure_alb_identity_resource 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = {
   name: userAssignedIdentities_azure_alb_identity_name
@@ -109,58 +123,41 @@ resource managedClusters_datasynchro_aks_resource 'Microsoft.ContainerService/ma
     dnsPrefix: 'datasynchr-RG-APPLICATION-G-023b20'
     agentPoolProfiles: [
       {
-        name: 'nodepool1'
-        count: 3
-        vmSize: 'Standard_DS2_v2'
+       name: 'agentpool'
         osDiskSizeGB: 128
-        osDiskType: 'Managed'
-        kubeletDiskType: 'OS'
-        maxPods: 30
-        type: 'VirtualMachineScaleSets'
-        enableAutoScaling: false
-        scaleDownMode: 'Delete'
-        powerState: {
-          code: 'Running'
-        }
-        orchestratorVersion: '1.32.7'
-        enableNodePublicIP: false
-        mode: 'System'
-        enableEncryptionAtHost: false
-        enableUltraSSD: false
+        count: 1
+        enableAutoScaling: true
+        minCount: 1
+        maxCount: 2
+        vmSize: 'Standard_DS2_v2'
         osType: 'Linux'
         osSKU: 'Ubuntu'
-        upgradeSettings: {
-          maxSurge: '10%'
-          maxUnavailable: '0'
-        }
-        enableFIPS: false
-        securityProfile: {
-          enableVTPM: false
-          enableSecureBoot: false
-        }
+        type: 'VirtualMachineScaleSets'
+        mode: 'System'
+        maxPods: 110
+        enableNodePublicIP: false
         vnetSubnetID: '${virtualNetworks_datasynchro_vnet_resource.id}/subnets/subnet-aks'
-      }
-      
+      }      
     ]
   
     nodeResourceGroup: nodeResourceGroupName
     enableRBAC: true
     supportPlan: 'KubernetesOfficial'
     networkProfile: {
-      networkPlugin: 'azure'
-      networkPolicy: 'none'
-      networkDataplane: 'azure'
       loadBalancerSku: 'standard'
-      loadBalancerProfile: {
-        managedOutboundIPs: {
-          count: 1
-        }
-        backendPoolType: 'nodeIPConfiguration'
-      }
-     
+      networkPlugin: 'azure'
+      networkPluginMode: 'overlay'
+      networkDataplane: 'azure'
+      networkPolicy: 'azure'
     }
 
-    disableLocalAccounts: false
+
+    aadProfile: {
+      adminGroupObjectIDs: adminGroupObjectIDs
+      enableAzureRBAC: true
+      managed: true
+      tenantID: tenant().tenantId
+    }
     securityProfile: {
       workloadIdentity: {
         enabled: true
@@ -173,21 +170,21 @@ resource managedClusters_datasynchro_aks_resource 'Microsoft.ContainerService/ma
   }
 }
 
-// Delegate AppGw for Containers Configuration Manager role to RG containing Application Gateway for Containers resource
-resource AppGwForContainersConfigurationManagerRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: resourceGroup()
-  name: guid(resourceGroup().id,userAssignedIdentities_azure_alb_identity_resource.id,'fbc52c3f-28ad-4303-a892-8a056630b8f1') //AppGw for Containers Configuration Manager
+
+module AppGwForContainersConfigurationManagerRole_roleAssignment 'modules/roleAssignment.bicep' = {
   
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fbc52c3f-28ad-4303-a892-8a056630b8f1') //'fbc52c3f-28ad-4303-a892-8a056630b8f1' // Reader role
-    description: 'Apply Reader role to the AKS managed cluster resource group for the newly provisioned identity'
-    principalId: userAssignedIdentities_azure_alb_identity_resource.properties.principalId
-    principalType: 'ServicePrincipal'
-    
+  name: 'applyReaderRoleToAksRG'
+  scope: resourceGroup()
+  params: {
+
+    identityPrincipalId: userAssignedIdentities_azure_alb_identity_resource.properties.principalId
+    roleDefinitionId:'fbc52c3f-28ad-4303-a892-8a056630b8f1'
+     description: 'Apply Reader role to the AKS managed cluster resource group for the newly provisioned identity'
+     principalType: 'ServicePrincipal'
   }
 }
  
-module readerRole 'roleAssignment.bicep' = {
+module readerRole 'modules/roleAssignment.bicep' = {
   name: 'applyReaderRoleToAksRG'
   scope: resourceGroup(nodeResourceGroupName)
   params: {
@@ -196,6 +193,9 @@ module readerRole 'roleAssignment.bicep' = {
     description:  'Apply Reader role to the AKS managed cluster resource group for the newly provisioned identity'
     principalType: 'ServicePrincipal'
   }
+  dependsOn:[
+    managedClusters_datasynchro_aks_resource
+  ]
 }
  
 //  Référence au sous-réseau ALB
@@ -206,7 +206,7 @@ resource subnetAlb 'Microsoft.Network/virtualNetworks/subnets@2024-07-01' existi
 
 //  Assignation du rôle Network Contributor sur le sous-réseau ALB
 resource subnetAlbNetworkContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subnetAlb.id, userAssignedIdentities_azure_alb_identity_resource.id, '4d97b98b-1d4f-4787-a291-c67834d212e7')
+  name: guid(subnetAlb.id, userAssignedIdentities_azure_alb_identity_resource.id, 'Network Contributor'/*'4d97b98b-1d4f-4787-a291-c67834d212e7'*/)
   scope: subnetAlb
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7') // Network Contributor
@@ -217,3 +217,56 @@ resource subnetAlbNetworkContributorAssignment 'Microsoft.Authorization/roleAssi
 }
 
 
+resource kubernetesServiceClusterAdminRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: managedClusters_datasynchro_aks_resource
+  name: guid(managedClusters_datasynchro_aks_resource.id,adminGroupObjectIDs[0],'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b') 
+    description: 'Azure Kubernetes Service RBAC Cluster Admin Role to manage all resources in the cluster.'
+    principalId: adminGroupObjectIDs[0]
+    principalType: 'User'
+  }
+} 
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2021-12-01-preview' = {
+  name: logAnalyticsWorkspaceName
+  tags: tags
+  location: location
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+  }
+}
+
+module containerRegistry 'modules/containerRegistry.bicep' = {
+  name: 'containerRegistry'
+  params: {
+    name: containerRegistryName
+    sku: containerRegistrySku
+    adminUserEnabled : false
+    location: location
+     workspaceId: logAnalyticsWorkspace.id
+    tags: tags
+  }
+}
+
+resource containerRegistryResource 'Microsoft.ContainerRegistry/registries@2025-04-01' existing = {
+  name: containerRegistryName
+  dependsOn: [
+    containerRegistry
+  ]
+}
+
+resource acrKubeletAcrPullRole_roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: containerRegistryResource
+  name: guid(containerRegistryResource.id,managedClusters_datasynchro_aks_resource.id,'b1ff04bb-8a4e-4dc4-8eb5-8693973ce19b')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')  //
+    description: 'Allows AKS to pull container images from this ACR instance.'
+    principalId: managedClusters_datasynchro_aks_resource.properties.identityProfile.kubeletidentity.objectId
+    principalType: 'ServicePrincipal'
+  }
+  dependsOn: [
+    containerRegistry
+  ]
+} 

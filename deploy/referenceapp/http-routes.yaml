@@ -1,0 +1,31 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: webapps-route
+  namespace: azure-resources
+  annotations:
+    # Optional: if your backend does not respond to "/" for health checks
+    # alb.networking.azure.io/health-probe-path: /webapp/
+spec:
+  parentRefs:
+    - name: gateway-01
+      namespace: azure-resources
+  rules:
+    # Route /webapi/ to webapi-service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /webapi/
+      backendRefs:
+        - name: webapi-service
+          port: 80
+
+    # Route /webapp/ to webapp-service
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /webapp/
+      backendRefs:
+        - name: webapp-service
+          port: 80
+
