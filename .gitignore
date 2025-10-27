@@ -7,3 +7,5 @@ main_arm.bicep
 src/ReferenceApp/.vs/ProjectEvaluation/referenceapp.metadata.v9.bin
 src/ReferenceApp/.vs/ProjectEvaluation/referenceapp.projects.v9.bin
 src/ReferenceApp/.vs/ProjectEvaluation/referenceapp.strings.v9.bin
+/src/ReferenceApp/ChatBot/bin/Debug/net9.0
+/src/ReferenceApp/ChatBot/obj

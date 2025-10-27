@@ -83,6 +83,51 @@ resource managedClusters_datasynchro_aks_resource 'Microsoft.ContainerService/ma
   }
 }  
 
+// azure ai
+param workloadManagedIdentityName string
+param tags object = {}
+param serviceAccountName string = 'alb-controller-sa'
+
+param namespace string ='azure-alb-system'
+
+
+
+//  This user-defined managed identity used by the workload to connect to the Azure OpenAI resource with a security token issued by Azue Active Directory
+resource workloadManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: workloadManagedIdentityName
+  location: location
+  tags: tags
+}
+
+resource cognitiveServicesUserRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  name: 'a97b65f3-24c7-4388-baec-2e87135dc908'
+  scope: subscription()
+}
+
+// Assign the Cognitive Services User role to the user-defined managed identity used by workloads
+resource cognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name:  guid(workloadManagedIdentity.id, cognitiveServicesUserRole.id)
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: cognitiveServicesUserRole.id
+    principalId: workloadManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Create federated identity for the user-defined managed identity used by the workload
+resource federatedIdentityCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' =  {
+  name: 'WorkloadFederatedIdentityCredentials'
+  parent: workloadManagedIdentity
+  properties: {
+    issuer: managedClusters_datasynchro_aks_resource.properties.oidcIssuerProfile.issuerURL
+    subject: 'system:serviceaccount:${namespace}:${serviceAccountName}'
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+  }
+}
+
 
  
 output issuerUrl string = managedClusters_datasynchro_aks_resource.properties.oidcIssuerProfile.issuerURL

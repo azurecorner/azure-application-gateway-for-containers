@@ -17,10 +17,7 @@ New-AzResourceGroupDeployment `
   -DeploymentDebugLogLevel All `
   -WhatIf
 
-
-
 # run bicep
-
 
 $resourceGroupName="RG-APPLICATION-GATEWAY-FOR-CONTAINER"
 

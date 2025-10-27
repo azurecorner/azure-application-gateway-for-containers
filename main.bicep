@@ -20,6 +20,65 @@ param controllerNamespace string ='azure-alb-system'
 
 param trafficControllers_alb_name string = 'datasynchro_alb'
 
+//openai
+
+
+@description('Specifies the name of the Azure OpenAI resource.')
+param openAiName string =  'datasynchro-openai'
+
+@description('Specifies the resource model definition representing SKU.')
+param openAiSku object = {
+  name: 'S0'
+}
+
+@description('Specifies the identity of the OpenAI resource.')
+param openAiIdentity object = {
+  type: 'SystemAssigned'
+}
+
+@description('Specifies an optional subdomain name used for token-based authentication.')
+param openAiCustomSubDomainName string = ''
+
+@description('Specifies whether or not public endpoint access is allowed for this account..')
+@allowed([
+  'Enabled'
+  'Disabled'
+])
+param openAiPublicNetworkAccess string = 'Enabled'
+
+@description('Specifies the OpenAI deployments to create.')
+param openAiDeployments array = [
+  {
+    name: 'gpt-4o'
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-4o'
+      version: '2024-11-20'
+    }
+    sku: {
+      name: 'Standard'
+      capacity: 30
+    }
+  }
+   {
+    name: 'text-embedding-ada-002'
+    model: {
+      format: 'OpenAI'
+      name: 'text-embedding-ada-002'
+      version: '2'
+    }
+    sku: {
+      name: 'Standard'
+      capacity: 30
+    }
+  }
+]
+
+@description('Specifies the name of the private link to the Azure OpenAI resource.')
+param openAiPrivateEndpointName string = 'openai-private-endpoint'
+
+
+//
 @description('Specifies the name of the container registry.')
 param tags object 
 
@@ -72,13 +131,13 @@ module kubernetes 'modules/kubernetes.bicep' = {
     location: location
     adminGroupObjectIDs: adminGroupObjectIDs
     aks_subnet_id: virtual_network.outputs.aks_subnet_id
-    
+     workloadManagedIdentityName:'WorkloadManagedIdentity'
       managedClusters_datasynchro_aks_name: managedClusters_datasynchro_aks_name
   nodeResourceGroupName: nodeResourceGroupName
   }
 }
 
-module gateway 'modules/gateway.bicep' = {
+/* module gateway 'modules/gateway.bicep' = {
   name:'gateway'
   params: {
     
@@ -92,20 +151,34 @@ module gateway 'modules/gateway.bicep' = {
   dependsOn: [
     kubernetes
   ]
-}
+} */
  
 resource userAssignedIdentities_azure_alb_identity_name_userAssignedIdentities_azure_alb_identity_name 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = {
   parent: userAssignedIdentities_azure_alb_identity_resource
   name: userAssignedIdentities_azure_alb_identity_name
   properties: {
-    issuer: kubernetes.outputs.issuerUrl // managedClusters_datasynchro_aks_resource.properties.oidcIssuerProfile.issuerURL
-    subject: 'system:serviceaccount:${controllerNamespace}:${serviceAccountName}' //'system:serviceaccount:azure-alb-system:alb-controller-sa' // 
+    issuer: kubernetes.outputs.issuerUrl 
+    subject: 'system:serviceaccount:${controllerNamespace}:${serviceAccountName}' 
     audiences: [
       'api://AzureADTokenExchange'
     ]
   }
 } 
 
+module openAi 'modules/openAi.bicep' = {
+  name: 'openAi'
+  params: {
+    name: openAiName
+    sku: openAiSku
+    identity: openAiIdentity
+    customSubDomainName: empty(openAiCustomSubDomainName) ? toLower(openAiName) : openAiCustomSubDomainName
+    publicNetworkAccess: openAiPublicNetworkAccess
+    deployments: openAiDeployments
+    workspaceId: logAnalyticsWorkspace.id
+    location: location
+    tags: tags
+  }
+}
 
 output sunet_aks_id string= virtual_network.outputs.aks_subnet_id
 
