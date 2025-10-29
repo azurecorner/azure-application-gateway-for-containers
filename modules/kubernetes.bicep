@@ -104,14 +104,27 @@ resource cognitiveServicesUserRole 'Microsoft.Authorization/roleDefinitions@2022
   scope: subscription()
 }
 
-// Assign the Cognitive Services User role to the user-defined managed identity used by workloads
-resource cognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name:  guid(workloadManagedIdentity.id, cognitiveServicesUserRole.id)
+// // Assign the Cognitive Services User role to the user-defined managed identity used by workloads
+// resource cognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+//   name:  guid(workloadManagedIdentity.id, cognitiveServicesUserRole.id)
+//   scope: resourceGroup()
+//   properties: {
+//     roleDefinitionId: cognitiveServicesUserRole.id
+//     principalId: workloadManagedIdentity.properties.principalId
+//     principalType: 'ServicePrincipal'
+//   }
+// }
+
+module AppGwForContainersConfigurationManagerRole_roleAssignment 'roleAssignment.bicep' = {
+  
+  name: 'applycognitiveServicesUserRoleToOpenAiRG'
   scope: resourceGroup()
-  properties: {
-    roleDefinitionId: cognitiveServicesUserRole.id
-    principalId: workloadManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
+  params: {
+
+    identityPrincipalId: workloadManagedIdentity.properties.principalId
+    roleDefinitionId:'a97b65f3-24c7-4388-baec-2e87135dc908'
+     description: 'Assign the Cognitive Services User role to the user-defined managed identity used by workloads'
+     principalType: 'ServicePrincipal'
   }
 }
 

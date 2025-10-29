@@ -24,7 +24,7 @@ param trafficControllers_alb_name string = 'datasynchro_alb'
 
 
 @description('Specifies the name of the Azure OpenAI resource.')
-param openAiName string =  'datasynchro-openai'
+param openAiName string =  'datasynchro-openai-001'
 
 @description('Specifies the resource model definition representing SKU.')
 param openAiSku object = {

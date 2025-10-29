@@ -88,6 +88,16 @@ resource openAiDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05
   }
 }
 
+module AzureAiUserRole 'roleAssignmentv2.bicep' = {
+  name: 'AzureAiUserRole'
+  params: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d') //Azure AI User
+    identityPrincipalId: '1874d709-8343-4c7a-926d-d4dbb1f66ffe' // system assigned managed identity of the vm running the workload
+    roleDescription: 'Grants reader access to AI projects, reader access to AI accounts, and data actions for an AI project.'
+    principalType:'ServicePrincipal'
+  }
+}
+
 // Outputs
 output id string = openAi.id
 output name string = openAi.name

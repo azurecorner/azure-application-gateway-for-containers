@@ -9,3 +9,6 @@ src/ReferenceApp/.vs/ProjectEvaluation/referenceapp.projects.v9.bin
 src/ReferenceApp/.vs/ProjectEvaluation/referenceapp.strings.v9.bin
 /src/ReferenceApp/ChatBot/bin/Debug/net9.0
 /src/ReferenceApp/ChatBot/obj
+/src/ReferenceApp/ChatBot/WebApi/.vs/WebApi/DesignTimeBuild
+/src/ReferenceApp/ChatBot/WebApi/obj
+/src/ReferenceApp/ChatBot/WebApi/bin/Debug/net9.0
