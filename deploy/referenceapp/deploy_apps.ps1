@@ -81,12 +81,17 @@ kubectl apply -f .\deploy\referenceapp\curl-test.yaml
 kubectl get pods -n $HELM_NAMESPACE
 
 kubectl get svc -n $HELM_NAMESPACE
-kubectl label namespace azure-resources azure.workload.identity/use=true --overwrite
+
+
+kubectl describe pod otel-demo-chatbot -n $HELM_NAMESPACE | grep "AZURE_CLIENT_ID:"
+
+kubectl describe pod otel-demo-chatbot -n $HELM_NAMESPACE | grep "AZURE_TENANT_ID:"
 
 kubectl exec -it $(kubectl get pod -l app=chatbot -n azure-resources -o jsonpath='{.items[0].metadata.name}') -n azure-resources -- ls /var/run/secrets/azure/tokens/
 
+# test
 
-az identity federated-credential list   --identity-name WorkloadManagedIdentity   --resource-group $RESOURCE_GROUP  -o table
-
-
-kubectl exec -it curl-test -n $HELM_NAMESPACE -- curl -v -k  http://chatbot-service/Chat
+kubectl exec -it curl-test -n azure-resources --   curl -v -k http://chatbot-service/Chat   -H "accept: */*"   -H "Content-Type: application/json"   -d '{
+  "userId": "test-user",
+  "message": "Hello from AKS!"
+}'

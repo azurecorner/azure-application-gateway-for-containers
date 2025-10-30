@@ -5,8 +5,7 @@ metadata:
   namespace: azure-resources
   labels:
     app: chatbot
-    azure.workload.identity/use: "true"  # Required. Only pods with this label can use workload identity.
-spec:
+spec:  
   replicas: 1
   selector:
     matchLabels:
@@ -15,8 +14,9 @@ spec:
     metadata:
       labels:
         app: chatbot
+        azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: chatbot-sa
+      serviceAccountName: workload-identity-sa
       containers:
         - name: otel-demo-chatbot
           image: datasynchroacr.azurecr.io/chat-bot:latest
@@ -34,5 +34,3 @@ spec:
               value: http://+:5000
             - name: ASPNETCORE_ENVIRONMENT
               value: Kubernetes
-           
-           
