@@ -1,5 +1,5 @@
 using Microsoft.OpenApi.Models;
-using WebApi.Controllers;
+using ChatBot.Controllers;
 
 var builder = WebApplication.CreateBuilder(args);
 

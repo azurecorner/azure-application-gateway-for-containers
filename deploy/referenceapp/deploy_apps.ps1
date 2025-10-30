@@ -69,4 +69,24 @@ spec:
         Write-Host "Status: $($resp.StatusCode)" -ForegroundColor Green
         Write-Host $resp.Content
 
+# deploy chat bot app
 
+az aks show -n $AKS_NAME -g $RESOURCE_GROUP --query "securityProfile.workloadIdentity.enabled" -o tsv
+
+kubectl apply -f .\deploy\referenceapp\chatbot-service-account.yaml
+kubectl apply -f .\deploy\referenceapp\chatbot-deployment.yaml
+kubectl apply -f .\deploy\referenceapp\chatbot-service.yaml
+kubectl apply -f .\deploy\referenceapp\curl-test.yaml
+
+kubectl get pods -n $HELM_NAMESPACE
+
+kubectl get svc -n $HELM_NAMESPACE
+kubectl label namespace azure-resources azure.workload.identity/use=true --overwrite
+
+kubectl exec -it $(kubectl get pod -l app=chatbot -n azure-resources -o jsonpath='{.items[0].metadata.name}') -n azure-resources -- ls /var/run/secrets/azure/tokens/
+
+
+az identity federated-credential list   --identity-name WorkloadManagedIdentity   --resource-group $RESOURCE_GROUP  -o table
+
+
+kubectl exec -it curl-test -n $HELM_NAMESPACE -- curl -v -k  http://chatbot-service/Chat

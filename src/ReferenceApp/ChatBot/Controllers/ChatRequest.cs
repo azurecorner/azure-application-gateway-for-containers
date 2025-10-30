@@ -1,4 +1,4 @@
-﻿namespace WebApi.Controllers
+﻿namespace ChatBot.Controllers
 {
     public class ChatRequest
     {

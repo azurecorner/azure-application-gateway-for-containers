@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-demo-chatbot
+  namespace: azure-resources
+  labels:
+    app: chatbot
+    azure.workload.identity/use: "true"  # Required. Only pods with this label can use workload identity.
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chatbot
+  template:
+    metadata:
+      labels:
+        app: chatbot
+    spec:
+      serviceAccountName: chatbot-sa
+      containers:
+        - name: otel-demo-chatbot
+          image: datasynchroacr.azurecr.io/chat-bot:latest
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          env:
+            - name: ASPNETCORE_URLS
+              value: http://+:5000
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Kubernetes
+           
+           

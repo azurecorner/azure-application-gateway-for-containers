@@ -180,6 +180,18 @@ module openAi 'modules/openAi.bicep' = {
   }
 }
 
+module keyvault 'modules/keyvault.bicep' = {
+  name: 'keyvault'
+  params: {
+    location: location
+    keyvault_name: 'keyvault-workload-id-log'
+      workloadManagedIdentityName:'WorkloadManagedIdentity'
+  }
+  dependsOn: [
+    openAi
+  ]
+}
+
 output sunet_aks_id string= virtual_network.outputs.aks_subnet_id
 
 output alb_subnet_id string= virtual_network.outputs.alb_subnet_id

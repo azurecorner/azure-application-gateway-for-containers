@@ -86,9 +86,9 @@ resource managedClusters_datasynchro_aks_resource 'Microsoft.ContainerService/ma
 // azure ai
 param workloadManagedIdentityName string
 param tags object = {}
-param serviceAccountName string = 'alb-controller-sa'
+param serviceAccountName string = 'workload-identity-sa'
 
-param namespace string ='azure-alb-system'
+param serviceAccountNameNamespace string ='azure-resources'
 
 
 
@@ -99,10 +99,10 @@ resource workloadManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentiti
   tags: tags
 }
 
-resource cognitiveServicesUserRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: 'a97b65f3-24c7-4388-baec-2e87135dc908'
-  scope: subscription()
-}
+// resource cognitiveServicesUserRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+//   name: 'a97b65f3-24c7-4388-baec-2e87135dc908'
+//   scope: subscription()
+// }
 
 // // Assign the Cognitive Services User role to the user-defined managed identity used by workloads
 // resource cognitiveServicesUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -128,13 +128,25 @@ module AppGwForContainersConfigurationManagerRole_roleAssignment 'roleAssignment
   }
 }
 
+
+module AzureAiUserRole 'roleAssignmentv2.bicep' = {
+  name: 'AzureAiUserRole'
+  params: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d') //Azure AI User
+    identityPrincipalId: workloadManagedIdentity.properties.principalId // system assigned managed identity of the vm running the workload
+    roleDescription: 'Grants reader access to AI projects, reader access to AI accounts, and data actions for an AI project.'
+    principalType:'ServicePrincipal'
+  }
+}
+
+
 // Create federated identity for the user-defined managed identity used by the workload
 resource federatedIdentityCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' =  {
   name: 'WorkloadFederatedIdentityCredentials'
   parent: workloadManagedIdentity
   properties: {
     issuer: managedClusters_datasynchro_aks_resource.properties.oidcIssuerProfile.issuerURL
-    subject: 'system:serviceaccount:${namespace}:${serviceAccountName}'
+    subject: 'system:serviceaccount:${serviceAccountNameNamespace}:${serviceAccountName}'
     audiences: [
       'api://AzureADTokenExchange'
     ]

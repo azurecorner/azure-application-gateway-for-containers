@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl-test
+  namespace: azure-resources
+spec:
+  containers:
+  - name: curl
+    image: curlimages/curl:latest
+    command: ["/bin/sh", "-c", "sleep 3600"]
+    resources:
+      limits:
+        memory: "128Mi"
+        cpu: "500m"
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+    # Using sleep to keep the pod alive for testing
+  restartPolicy: Always

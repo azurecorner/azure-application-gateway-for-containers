@@ -40,3 +40,7 @@ docker push "$acrName.azurecr.io/web-api:latest"
 # Build and push the Web App image
 docker build -t "$acrName.azurecr.io/web-app:latest" -f .\src\ReferenceApp\WebApp\Dockerfile .\src\ReferenceApp\ --no-cache
 docker push "$acrName.azurecr.io/web-app:latest"
+
+# Build and push the chatbot image
+docker build -t "$acrName.azurecr.io/chat-bot:latest" -f .\src\ReferenceApp\chatbot\Dockerfile .\src\ReferenceApp\ --no-cache
+docker push "$acrName.azurecr.io/chat-bot:latest"

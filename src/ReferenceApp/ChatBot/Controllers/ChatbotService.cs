@@ -1,30 +1,40 @@
-﻿namespace WebApi.Controllers
-{
-    using Azure.AI.OpenAI;
-    using Azure.Identity;
-    using OpenAI.Chat;
-    using System;
-    using System.Collections.Concurrent;
-    using System.Collections.Generic;
-    using System.Text;
-    using System.Threading;
-    using System.Threading.Tasks;
+﻿using Azure.AI.OpenAI;
+using Azure.Identity;
+using OpenAI.Chat;
+using System.Text;
 
+namespace ChatBot.Controllers
+{
     public class ChatbotService : IAsyncDisposable
     {
         private readonly ChatClient _chatClient;
 
         public ChatbotService()
         {
+  
+            var ep =  Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT")  ?? "https://datasynchro-openai-001.openai.azure.com/";
+            var deploy =  Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT")  ?? "gpt-4o";
 
-   
-            var ep =  Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT")
-                    ?? "https://datasynchro-openai-001.openai.azure.com/";
-            var deploy =  Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT")
-                        ?? "gpt-4o";
+            var managedIdentityClientId = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID"); // ?? "15d279b6-5ea0-4a27-80b4-af67115998de";
+            var tenantId = Environment.GetEnvironmentVariable("AZURE_TENANT_ID");//?? "f12a747a-cddf-4426-96ff-ebe055e215a3";
 
-            var credential = new DefaultAzureCredential();
-            var azureClient = new AzureOpenAIClient(new Uri(ep), credential);
+            Console.WriteLine("AZURE_CLIENT_ID = ", managedIdentityClientId);
+            Console.WriteLine("AZURE_TENANT_ID = ", tenantId);
+
+            // For example, will discover Visual Studio or Azure CLI credentials
+            // in local environments and managed identity credentials in production deployments
+            var credential = new DefaultAzureCredential(
+                new DefaultAzureCredentialOptions
+                {
+                  /*
+                    ManagedIdentityClientId = managedIdentityClientId,
+                    TenantId = tenantId
+                  */
+     
+                }
+            );
+
+             var azureClient = new AzureOpenAIClient(new Uri(ep), credential);
             _chatClient = azureClient.GetChatClient(deploy);
         }
         public ValueTask DisposeAsync()
