@@ -1,11 +1,5 @@
 using './main.bicep'
-param  containerRegistrySku  = 'Premium'
-
-param containerRegistryName  ='datasynchroacr'
-
-param logAnalyticsWorkspaceName =  'datasynchrolaw'
-
-param tags  = {
-
-DeployedBy: 'Bicep'
-}
+param location = 'francecentral'
+param resourceGroupName = 'RG-APPLICATION-GATEWAY-FOR-CONTAINER'
+param environmentName = 'dev'
+param resourceSuffix = 'datasynchro'

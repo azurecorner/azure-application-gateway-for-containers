@@ -1,17 +1,11 @@
+$subscriptionId="<your-subscription-id-or-name>"
+Set-AzContext -SubscriptionId $subscriptionId
 
-az deployment group validate `
-  --resource-group RG-APPLICATION-GATEWAY-FOR-CONTAINER `
-  --template-file main.bicep `
-  --parameters main.bicepparam `
-  --verbose
+$location="francecentral"
 
-
-
-$resourceGroupName="RG-APPLICATION-GATEWAY-FOR-CONTAINER"
-
-New-AzResourceGroupDeployment `
+New-AzSubscriptionDeployment `
   -Name "datasynchro-appgw-container" `
-  -ResourceGroupName $resourceGroupName `
+  -Location $location `
   -TemplateFile main.bicep `
   -TemplateParameterFile main.bicepparam `
   -DeploymentDebugLogLevel All `
@@ -19,15 +13,27 @@ New-AzResourceGroupDeployment `
 
 # run bicep
 
-$resourceGroupName="RG-APPLICATION-GATEWAY-FOR-CONTAINER"
+$subscriptionId="<your-subscription-id-or-name>"
 
-New-AzResourceGroupDeployment `
+Set-AzContext -SubscriptionId $subscriptionId
+
+az bicep build --file .\main.bicep; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+az bicep build --file .\main.resources.bicep; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$location="francecentral"
+
+New-AzSubscriptionDeployment `
   -Name "datasynchro-appgw-container" `
-  -ResourceGroupName $resourceGroupName `
+  -Location $location `
   -TemplateFile main.bicep `
   -TemplateParameterFile main.bicepparam `
   -DeploymentDebugLogLevel All
 
+
+   while (($d = Get-AzSubscriptionDeployment -Name 'datasynchro-appgw-container').ProvisioningState -eq 'Running') { Start-Sleep -Seconds 15 }
+    $d | Select-Object DeploymentName, ProvisioningState, Location, Timestamp | Format-List
+
+    
 
 # Set the ACR name and log in
 $acrName = "datasynchroacr"

@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datasynchro-app
+  namespace: datasynchro-app
+  labels:
+    azd-service-name: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: datasynchro-app
+  template:
+    metadata:
+      labels:
+        app: datasynchro-app
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: datasynchro-app-sa
+      containers:
+      - name: api
+        image: mcr.microsoft.com/azuredocs/containerapps-helloworld:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        env:
+        - name: APP_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: datasynchro-app-secrets
+              key: APP_SECRET
+        volumeMounts:
+        - name: kv-secrets
+          mountPath: /mnt/secrets
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: kv-secrets
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: datasynchro-app-kv
