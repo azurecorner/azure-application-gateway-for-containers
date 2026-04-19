@@ -13,7 +13,10 @@ The solution uses:
 - **Azure Workload Identity** for pod access to Key Vault
 - **Azure Container Registry (ACR)** for application images
 
+
 ## Architecture
+
+![Architecture diagram](docs/images/solution-architecture.png)
 
 At a high level:
 
