@@ -13,7 +13,6 @@ The solution uses:
 - **Azure Workload Identity** for pod access to Key Vault
 - **Azure Container Registry (ACR)** for application images
 
-add C:\Users\LEYE-GORA\source\repos\AZURE WARRIORS\azure-application-gateway-for-containers\solution-architecture.drawio  here
 
 ## Architecture
 
