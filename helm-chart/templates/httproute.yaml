@@ -30,6 +30,12 @@ spec:
     - path:
         type: PathPrefix
         value: {{ .Values.route.app2PathPrefix }}
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
     backendRefs:
     - name: {{ .Values.apps.app2.service.name }}
       port: {{ .Values.apps.app2.service.port }}

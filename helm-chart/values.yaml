@@ -62,7 +62,6 @@ apps:
     service:
       name: app2-service
       port: 80
-    responseText: app2
 
 azure:
   appIdentityClientId: ""
