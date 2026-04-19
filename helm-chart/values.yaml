@@ -45,7 +45,7 @@ apps:
   app1:
     name: app1
     image:
-      repository: mcr.microsoft.com/dotnet/samples
+      repository: crdevdatasynchroapp.azurecr.io/samples
       tag: aspnetapp
       pullPolicy: IfNotPresent
     containerPort: 8080
@@ -55,7 +55,7 @@ apps:
   app2:
     name: app2
     image:
-      repository: nginx
+      repository: crdevdatasynchroapp.azurecr.io/nginx
       tag: "1.25"
       pullPolicy: IfNotPresent
     containerPort: 80

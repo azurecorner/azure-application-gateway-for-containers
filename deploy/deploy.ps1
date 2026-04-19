@@ -3,6 +3,7 @@
 param(
     [string]$ResourceGroup = 'RG-APPLICATION-GATEWAY-FOR-CONTAINER',
     [string]$AksName = 'aks-datasynchro-app',
+    [string]$AcrName = 'crdevdatasynchroapp',
     [string]$AlbIdentityName = 'id-alb-datasynchro-app',
     [string]$AppIdentityName = 'id-app-datasynchro-app',
     [string]$KeyVaultName = 'kv-datasynchro-app',
@@ -47,7 +48,12 @@ $scriptRoot = Split-Path -Parent $PSCommandPath
 $repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 $helmChartPath = Join-Path $scriptRoot '..\helm-chart'
 $resolvedHelmChartPath = (Resolve-Path $helmChartPath).Path
+$imageDeployScriptPath = Join-Path $repoRoot 'build_and_deploy_images.ps1'
 $certificateScriptPath = Join-Path $repoRoot 'deploy-certificate.ps1'
+$app1ImageRepository = "$AcrName.azurecr.io/samples"
+$app1ImageTag = 'aspnetapp'
+$app2ImageRepository = "$AcrName.azurecr.io/nginx"
+$app2ImageTag = '1.25'
 
 $context = Get-AzContext
 if (-not $context) {
@@ -178,6 +184,16 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($appSecretValue)) {
             --output none
     }
 }
+Write-Host "==> Syncing application images to ACR $AcrName via $imageDeployScriptPath"
+Push-Location $repoRoot
+try {
+    Invoke-Checked {
+        pwsh -NoProfile -ExecutionPolicy Bypass -File $imageDeployScriptPath -acrName $AcrName
+    }
+}
+finally {
+    Pop-Location
+}
 
 Write-Host "==> Linting Helm chart"
 Invoke-Checked {
@@ -189,7 +205,11 @@ Invoke-Checked {
         --set gateway.frontendName=$FrontendName `
         --set gateway.hostname=$ApplicationForContainerHostName `
         --set gateway.tlsSecretName=$ListenerTlsSecretName `
-        --set route.hostname=$ApplicationForContainerHostName
+        --set route.hostname=$ApplicationForContainerHostName `
+        --set apps.app1.image.repository=$app1ImageRepository `
+        --set apps.app1.image.tag=$app1ImageTag `
+        --set apps.app2.image.repository=$app2ImageRepository `
+        --set apps.app2.image.tag=$app2ImageTag
 }
 
 Write-Host "==> Deploying app Helm chart from $resolvedHelmChartPath"
@@ -204,7 +224,11 @@ Invoke-Checked {
         --set gateway.frontendName=$FrontendName `
         --set gateway.hostname=$ApplicationForContainerHostName `
         --set gateway.tlsSecretName=$ListenerTlsSecretName `
-        --set route.hostname=$ApplicationForContainerHostName
+        --set route.hostname=$ApplicationForContainerHostName `
+        --set apps.app1.image.repository=$app1ImageRepository `
+        --set apps.app1.image.tag=$app1ImageTag `
+        --set apps.app2.image.repository=$app2ImageRepository `
+        --set apps.app2.image.tag=$app2ImageTag
 }
 
 Write-Host "==> Current ALB controller pods"
@@ -257,3 +281,5 @@ Write-Host "fqdnIp=$fqdnIp"
 curl.exe -k --resolve "${ApplicationForContainerHostName}:443:${fqdnIp}" "https://$ApplicationForContainerHostName/app1" --insecure
 
 curl.exe -k --resolve "${ApplicationForContainerHostName}:443:${fqdnIp}" "https://$ApplicationForContainerHostName/app2" --insecure
+
+
