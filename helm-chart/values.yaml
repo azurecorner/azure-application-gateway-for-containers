@@ -1,0 +1,70 @@
+fullnameOverride: datasynchro-app
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  name: datasynchro-app-sa
+
+resources:
+  requests:
+    memory: 128Mi
+    cpu: 100m
+  limits:
+    memory: 256Mi
+    cpu: 500m
+
+probes:
+  path: /
+  livenessInitialDelaySeconds: 15
+  livenessPeriodSeconds: 10
+  readinessInitialDelaySeconds: 5
+  readinessPeriodSeconds: 5
+
+secretProviderClass:
+  name: datasynchro-app-kv
+  secretName: datasynchro-app-secrets
+  keyVaultSecretName: app-secret
+  secretKey: APP_SECRET
+  tlsSecretName: listener-tls-secret
+  keyVaultCertificateName: contoso-cert
+
+gateway:
+  name: datasynchro-app-gw
+  frontendName: frontend
+  hostname: app.contoso.net
+  tlsSecretName: listener-tls-secret
+
+route:
+  name: datasynchro-app-route
+  hostname: app.contoso.net
+  app1PathPrefix: /app1
+  app2PathPrefix: /app2
+
+apps:
+  app1:
+    name: app1
+    image:
+      repository: crdevdatasynchroapp.azurecr.io/samples
+      tag: aspnetapp
+      pullPolicy: IfNotPresent
+    containerPort: 8080
+    service:
+      name: app1-service
+      port: 80
+  app2:
+    name: app2
+    image:
+      repository: crdevdatasynchroapp.azurecr.io/nginx
+      tag: "1.25"
+      pullPolicy: IfNotPresent
+    containerPort: 80
+    service:
+      name: app2-service
+      port: 80
+
+azure:
+  appIdentityClientId: ""
+  keyVaultName: ""
+  tenantId: ""
+  agfcId: ""

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: datasynchro-app
+description: Helm chart for the datasynchro sample app behind Application Gateway for Containers
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
