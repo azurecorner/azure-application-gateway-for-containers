@@ -9,6 +9,7 @@ param environmentName string
 @minLength(1)
 @maxLength(20)
 param resourceSuffix string
+param keyVaultCertificatesOfficerObjectId string
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: resourceGroupName
@@ -22,6 +23,7 @@ module workload 'main.resources.bicep' = {
     location: location
     environmentName: environmentName
     resourceSuffix: resourceSuffix
+    keyVaultCertificatesOfficerObjectId: keyVaultCertificatesOfficerObjectId
   }
   dependsOn: [
     rg

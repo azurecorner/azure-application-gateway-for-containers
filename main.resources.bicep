@@ -6,8 +6,10 @@ param environmentName string
 @minLength(1)
 @maxLength(20)
 param resourceSuffix string
+param keyVaultCertificatesOfficerObjectId string
 
-var acrName ='cr${environmentName}${resourceSuffix}'
+var normalizedResourceSuffix = toLower(replace(resourceSuffix, '-', ''))
+var acrName = 'cr${environmentName}${normalizedResourceSuffix}'
 var aksName = 'aks-${resourceSuffix}'
 var aksNodeResourceGroupName = take('rg-aksnodes-${resourceSuffix}', 80)
 var agfcName = 'agfc-${resourceSuffix}'
@@ -241,6 +243,26 @@ resource kvSecretsUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
     principalId: appIdentity.properties.principalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+resource kvCertificatesOfficerRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, keyVaultCertificatesOfficerObjectId, 'kv-certificates-officer')
+  scope: keyVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a4417e6f-fecd-4de8-b567-7b0420556985')
+    principalId: keyVaultCertificatesOfficerObjectId
+    principalType: 'User'
+  }
+}
+
+resource kvSecretsOfficerRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, keyVaultCertificatesOfficerObjectId, 'kv-secrets-officer')
+  scope: keyVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
+    principalId: keyVaultCertificatesOfficerObjectId
+    principalType: 'User'
   }
 }
 

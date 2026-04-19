@@ -1,0 +1,28 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gateway.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "datasynchro-app.labels" . | nindent 4 }}
+  annotations:
+    alb.networking.azure.io/alb-id: {{ required "azure.agfcId is required" .Values.azure.agfcId | quote }}
+spec:
+  gatewayClassName: azure-alb-external
+  listeners:
+  - name: https
+    hostname: {{ .Values.gateway.hostname | quote }}
+    port: 443
+    protocol: HTTPS
+    allowedRoutes:
+      namespaces:
+        from: Same
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        group: ""
+        name: {{ .Values.gateway.tlsSecretName }}
+  addresses:
+  - type: alb.networking.azure.io/alb-frontend
+    value: {{ .Values.gateway.frontendName | quote }}

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "4131131028380188025"
+      "templateHash": "12089936344949657682"
     }
   },
   "parameters": {
@@ -21,18 +21,22 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 20
+    },
+    "keyVaultCertificatesOfficerObjectId": {
+      "type": "string"
     }
   },
   "variables": {
-    "acrName": "[replace(format('crdevopsdashboardaks{0}{1}', parameters('environmentName'), parameters('resourceSuffix')), '-', '')]",
-    "aksName": "[format('aks-datasynchro-app-aks-{0}', parameters('resourceSuffix'))]",
+    "normalizedResourceSuffix": "[toLower(replace(parameters('resourceSuffix'), '-', ''))]",
+    "acrName": "[format('cr{0}{1}', parameters('environmentName'), variables('normalizedResourceSuffix'))]",
+    "aksName": "[format('aks-{0}', parameters('resourceSuffix'))]",
     "aksNodeResourceGroupName": "[take(format('rg-aksnodes-{0}', parameters('resourceSuffix')), 80)]",
     "agfcName": "[format('agfc-{0}', parameters('resourceSuffix'))]",
     "albIdentityName": "[format('id-alb-{0}', parameters('resourceSuffix'))]",
     "appIdentityName": "[format('id-app-{0}', parameters('resourceSuffix'))]",
-    "kvName": "[take(format('kv-devops-{0}', parameters('resourceSuffix')), 24)]",
-    "lawName": "[format('law-datasynchro-app-aks-{0}', parameters('resourceSuffix'))]",
-    "vnetName": "[format('vnet-datasynchro-app-aks-{0}', parameters('resourceSuffix'))]"
+    "kvName": "[take(format('kv-{0}', parameters('resourceSuffix')), 24)]",
+    "lawName": "[format('law-{0}', parameters('resourceSuffix'))]",
+    "vnetName": "[format('vnet-{0}', parameters('resourceSuffix'))]"
   },
   "resources": [
     {
@@ -302,6 +306,34 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('appIdentityName'))]",
+        "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('kvName')), parameters('keyVaultCertificatesOfficerObjectId'), 'kv-certificates-officer')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+        "principalId": "[parameters('keyVaultCertificatesOfficerObjectId')]",
+        "principalType": "User"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('kvName')), parameters('keyVaultCertificatesOfficerObjectId'), 'kv-secrets-officer')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]",
+        "principalId": "[parameters('keyVaultCertificatesOfficerObjectId')]",
+        "principalType": "User"
+      },
+      "dependsOn": [
         "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]"
       ]
     }

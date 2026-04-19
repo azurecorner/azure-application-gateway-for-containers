@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.apps.app2.name }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "datasynchro-app.labels" . | nindent 4 }}
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+      location / {
+        default_type text/plain;
+        return 200 "{{ .Values.apps.app2.responseText }}\n";
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.apps.app2.name }}-deployment
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "datasynchro-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.apps.app2.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "datasynchro-app.labels" . | nindent 8 }}
+        app: {{ .Values.apps.app2.name }}
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+      - name: {{ .Values.apps.app2.name }}
+        image: {{ printf "%s:%s" .Values.apps.app2.image.repository .Values.apps.app2.image.tag }}
+        imagePullPolicy: {{ .Values.apps.app2.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.apps.app2.containerPort }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.apps.app2.containerPort }}
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.apps.app2.containerPort }}
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: default.conf
+        - name: kv-secrets
+          mountPath: /mnt/secrets-store
+          readOnly: true
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: {{ .Values.apps.app2.name }}-config
+      - name: kv-secrets
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: {{ .Values.secretProviderClass.name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.apps.app2.service.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "datasynchro-app.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: {{ .Values.apps.app2.name }}
+  ports:
+  - protocol: TCP
+    port: {{ .Values.apps.app2.service.port }}
+    targetPort: {{ .Values.apps.app2.containerPort }}
