@@ -296,6 +296,77 @@ helm lint .\helm-chart `
   --set route.hostname=app.contoso.net
 ```
 
+## Deploy from GitHub Actions (federated identity)
+
+The repo includes `.github/workflows/deploy.yml`, a single workflow with three
+sequential jobs that performs the full deploy with **no client secrets**:
+
+1. `infra` — `az deployment sub create` against `main.bicep`
+2. `build-and-push` — mirrors the upstream sample images into ACR
+3. `helm` — installs the AGFC ALB controller and the application Helm chart
+
+Authentication is **OIDC federation** (`azure/login@v2` with
+`client-id`/`tenant-id`/`subscription-id`) — the workflow declares
+`permissions: id-token: write`.
+
+### One-time setup
+
+1. Create an Entra application + service principal **and** a federated
+   credential for this repo (see
+   [Use GitHub Actions to connect to Azure](https://learn.microsoft.com/azure/developer/github/connect-from-azure)).
+   The federated credential subject should match your trigger, e.g.
+   `repo:<owner>/<repo>:ref:refs/heads/main` or
+   `repo:<owner>/<repo>:environment:<env>`.
+
+2. Grant the service principal these roles **at subscription scope**:
+   - `Contributor`
+   - `User Access Administrator` (Bicep creates role assignments)
+
+   `AcrPush` on the registry is granted automatically by the workflow on
+   first run (idempotent).
+
+3. Add **repository secrets**:
+   - `AZURE_CLIENT_ID`
+   - `AZURE_TENANT_ID`
+   - `AZURE_SUBSCRIPTION_ID`
+
+4. Add **repository variables**:
+   - `KV_CERT_OFFICER_OBJECT_ID` — the **object ID** of the same service
+     principal. This is fed into the Bicep parameter
+     `keyVaultCertificatesOfficerObjectId` so the workflow gets Key Vault
+     Certificates Officer + Secrets Officer for cert and `app-secret` writes.
+   - Optional overrides (defaults shown):
+     `LOCATION=francecentral`,
+     `RESOURCE_GROUP_NAME=RG-APPLICATION-GATEWAY-FOR-CONTAINER`,
+     `ENVIRONMENT_NAME=dev`,
+     `RESOURCE_SUFFIX=datasynchro-app`,
+     `APP_HOSTNAME=app.contoso.net`.
+
+### Run it
+
+Trigger the workflow manually from the **Actions** tab (workflow_dispatch).
+The dispatch form exposes two booleans:
+
+- `skip_infra` — reuse existing infra
+- `skip_build` — skip image mirroring
+
+The job graph passes Bicep outputs (ACR endpoint, AKS name, AGFC ID, MI client
+IDs, Key Vault name, tenant ID) from `infra` → `build-and-push` → `helm`.
+
+### CI helper scripts
+
+The Linux-friendly helpers used by the workflow live in `deploy/ci/`:
+
+| Script | Purpose |
+| --- | --- |
+| `build-and-push-images.sh` | `az acr login` + docker pull/tag/push the two upstream images |
+| `generate-and-import-cert.sh` | `openssl` self-signed root + `*.contoso.net` leaf, `az keyvault certificate import` |
+| `install-alb-controller.sh` | `helm upgrade --install` of `oci://mcr.microsoft.com/application-lb/charts/alb-controller` |
+| `deploy-app-chart.sh` | `helm lint` + `helm upgrade --install` of `helm-chart/` with all values wired |
+
+The original `deploy/*.ps1` scripts remain for **local** Windows runs and are
+unchanged.
+
 ## Notes
 
 - The certificate workflow currently creates a **self-signed wildcard certificate** for `*.contoso.net`

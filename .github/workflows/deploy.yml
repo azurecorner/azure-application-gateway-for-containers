@@ -1,0 +1,266 @@
+name: Deploy (federated identity)
+
+# End-to-end deploy:
+#   1. infra           — Bicep at subscription scope
+#   2. build-and-push  — mirror upstream images into ACR
+#   3. helm            — install ALB controller + app chart on AKS
+#
+# Authentication uses Azure federated identity (OIDC) — no client secrets.
+# The repo must define:
+#   secrets:    AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   variables:  KV_CERT_OFFICER_OBJECT_ID  (object ID of the federated SP,
+#                                           needed for Key Vault data-plane RBAC)
+# Optional variables (defaults below match main.bicepparam):
+#   LOCATION, RESOURCE_GROUP_NAME, ENVIRONMENT_NAME, RESOURCE_SUFFIX, APP_HOSTNAME
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_infra:
+        description: "Skip the infra job (use existing deployment)"
+        type: boolean
+        default: false
+      skip_build:
+        description: "Skip the build-and-push job"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write       # required for OIDC federation
+  contents: read
+
+env:
+  LOCATION:            ${{ vars.LOCATION            || 'francecentral' }}
+  RESOURCE_GROUP_NAME: ${{ vars.RESOURCE_GROUP_NAME || 'RG-APPLICATION-GATEWAY-FOR-CONTAINER' }}
+  ENVIRONMENT_NAME:    ${{ vars.ENVIRONMENT_NAME    || 'dev' }}
+  RESOURCE_SUFFIX:     ${{ vars.RESOURCE_SUFFIX     || 'datasynchro-app' }}
+  APP_HOSTNAME:        ${{ vars.APP_HOSTNAME        || 'app.contoso.net' }}
+  DEPLOYMENT_NAME:     datasynchro-appgw-container
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) Infrastructure — Bicep at subscription scope
+  # ---------------------------------------------------------------------------
+  infra:
+    name: Deploy Bicep infra
+    if: ${{ !inputs.skip_infra }}
+    runs-on: ubuntu-latest
+    outputs:
+      acrLoginServer: ${{ steps.outputs.outputs.acrLoginServer }}
+      aksName:        ${{ steps.outputs.outputs.aksName }}
+      agfcId:         ${{ steps.outputs.outputs.agfcId }}
+      albClientId:    ${{ steps.outputs.outputs.albClientId }}
+      appClientId:    ${{ steps.outputs.outputs.appClientId }}
+      keyVaultName:   ${{ steps.outputs.outputs.keyVaultName }}
+      tenantId:       ${{ steps.outputs.outputs.tenantId }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate KV_CERT_OFFICER_OBJECT_ID is set
+        run: |
+          set -euo pipefail
+          if [[ -z "${{ vars.KV_CERT_OFFICER_OBJECT_ID }}" ]]; then
+            echo "ERROR: repo variable KV_CERT_OFFICER_OBJECT_ID is not set." >&2
+            echo "       Set it to the Entra object ID of the federated service principal so Bicep can grant Key Vault data-plane roles." >&2
+            exit 1
+          fi
+
+      - name: az deployment sub create
+        run: |
+          set -euo pipefail
+          az deployment sub create \
+            --name "${DEPLOYMENT_NAME}-${{ github.run_id }}" \
+            --location "${LOCATION}" \
+            --template-file ./main.bicep \
+            --parameters ./main.bicepparam \
+            --parameters \
+              location="${LOCATION}" \
+              resourceGroupName="${RESOURCE_GROUP_NAME}" \
+              environmentName="${ENVIRONMENT_NAME}" \
+              resourceSuffix="${RESOURCE_SUFFIX}" \
+              keyVaultCertificatesOfficerObjectId="${{ vars.KV_CERT_OFFICER_OBJECT_ID }}"
+
+      - name: Capture deployment outputs
+        id: outputs
+        run: |
+          set -euo pipefail
+          DEPLOY_NAME="${DEPLOYMENT_NAME}-${{ github.run_id }}"
+
+          OUT_JSON="$(az deployment sub show --name "${DEPLOY_NAME}" --query properties.outputs -o json)"
+          echo "${OUT_JSON}"
+
+          get() { echo "${OUT_JSON}" | jq -r --arg k "$1" '.[$k].value // empty'; }
+
+          {
+            echo "acrLoginServer=$(get AZURE_CONTAINER_REGISTRY_ENDPOINT)"
+            echo "aksName=$(get AZURE_AKS_CLUSTER_NAME)"
+            echo "agfcId=$(get AZURE_AGFC_ID)"
+            echo "albClientId=$(get AZURE_ALB_IDENTITY_CLIENT_ID)"
+            echo "appClientId=$(get AZURE_APP_IDENTITY_CLIENT_ID)"
+            echo "keyVaultName=$(get AZURE_KEY_VAULT_NAME)"
+            echo "tenantId=$(get AZURE_TENANT_ID)"
+          } >> "${GITHUB_OUTPUT}"
+
+  # ---------------------------------------------------------------------------
+  # 2) Build & push container images into ACR
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build & push images
+    needs: infra
+    if: ${{ !inputs.skip_build && (needs.infra.result == 'success' || needs.infra.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve ACR login server
+        id: acr
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ needs.infra.outputs.acrLoginServer }}" ]]; then
+            LOGIN_SERVER="${{ needs.infra.outputs.acrLoginServer }}"
+          else
+            # infra was skipped; resolve from Azure
+            LOGIN_SERVER="$(az acr list -g "${RESOURCE_GROUP_NAME}" --query '[0].loginServer' -o tsv)"
+          fi
+          ACR_NAME="${LOGIN_SERVER%%.*}"
+          echo "loginServer=${LOGIN_SERVER}" >> "${GITHUB_OUTPUT}"
+          echo "name=${ACR_NAME}"            >> "${GITHUB_OUTPUT}"
+
+      - name: Ensure deployer has AcrPush on the registry (idempotent)
+        run: |
+          set -euo pipefail
+          ACR_ID="$(az acr show --name '${{ steps.acr.outputs.name }}' --query id -o tsv)"
+          # Resolve current SP object ID from the OIDC-authenticated principal.
+          SP_OBJECT_ID="$(az ad sp show --id '${{ secrets.AZURE_CLIENT_ID }}' --query id -o tsv 2>/dev/null || true)"
+          if [[ -n "${SP_OBJECT_ID}" ]]; then
+            az role assignment create \
+              --assignee-object-id "${SP_OBJECT_ID}" \
+              --assignee-principal-type ServicePrincipal \
+              --role AcrPush \
+              --scope "${ACR_ID}" \
+              --output none 2>/dev/null || true
+          fi
+
+      - name: Build & push images
+        run: |
+          chmod +x ./deploy/ci/build-and-push-images.sh
+          ./deploy/ci/build-and-push-images.sh '${{ steps.acr.outputs.name }}'
+
+  # ---------------------------------------------------------------------------
+  # 3) Helm — ALB controller + app chart
+  # ---------------------------------------------------------------------------
+  helm:
+    name: Deploy Helm charts
+    needs: [infra, build-and-push]
+    if: ${{ always() && needs.build-and-push.result == 'success' && (needs.infra.result == 'success' || needs.infra.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install kubectl, helm, kubelogin
+        uses: azure/setup-kubectl@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.1.4
+
+      - name: Resolve infra values
+        id: infra
+        run: |
+          set -euo pipefail
+          AKS="${{ needs.infra.outputs.aksName }}"
+          KV="${{ needs.infra.outputs.keyVaultName }}"
+          AGFC="${{ needs.infra.outputs.agfcId }}"
+          ALB="${{ needs.infra.outputs.albClientId }}"
+          APP="${{ needs.infra.outputs.appClientId }}"
+          ACR="${{ needs.infra.outputs.acrLoginServer }}"
+          TENANT="${{ needs.infra.outputs.tenantId }}"
+
+          if [[ -z "${AKS}" ]]; then
+            # Fallback when infra was skipped
+            SUFFIX="${RESOURCE_SUFFIX}"
+            NORM="$(echo "${SUFFIX}" | tr -d '-' | tr '[:upper:]' '[:lower:]')"
+            AKS="aks-${SUFFIX}"
+            KV="$(printf 'kv-%s' "${SUFFIX}" | cut -c1-24)"
+            ALB="$(az identity show -g "${RESOURCE_GROUP_NAME}" -n "id-alb-${SUFFIX}" --query clientId -o tsv)"
+            APP="$(az identity show -g "${RESOURCE_GROUP_NAME}" -n "id-app-${SUFFIX}" --query clientId -o tsv)"
+            AGFC="$(az resource show -g "${RESOURCE_GROUP_NAME}" --namespace Microsoft.ServiceNetworking --resource-type trafficControllers -n "agfc-${SUFFIX}" --query id -o tsv)"
+            ACR="$(az acr show -n "cr${ENVIRONMENT_NAME}${NORM}" --query loginServer -o tsv)"
+            TENANT="$(az account show --query tenantId -o tsv)"
+          fi
+
+          {
+            echo "aks=${AKS}"
+            echo "kv=${KV}"
+            echo "agfc=${AGFC}"
+            echo "alb=${ALB}"
+            echo "app=${APP}"
+            echo "acr=${ACR}"
+            echo "tenant=${TENANT}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Get AKS credentials
+        run: |
+          set -euo pipefail
+          az aks get-credentials \
+            --resource-group "${RESOURCE_GROUP_NAME}" \
+            --name "${{ steps.infra.outputs.aks }}" \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Generate & import self-signed certificate to Key Vault
+        run: |
+          chmod +x ./deploy/ci/generate-and-import-cert.sh
+          ./deploy/ci/generate-and-import-cert.sh '${{ steps.infra.outputs.kv }}'
+
+      - name: Ensure 'app-secret' Key Vault secret exists
+        run: |
+          set -euo pipefail
+          KV='${{ steps.infra.outputs.kv }}'
+          if ! az keyvault secret show --vault-name "${KV}" --name app-secret --output none 2>/dev/null; then
+            az keyvault secret set \
+              --vault-name "${KV}" \
+              --name app-secret \
+              --value "$(uuidgen)" \
+              --output none
+          fi
+
+      - name: Install ALB controller (Helm)
+        run: |
+          chmod +x ./deploy/ci/install-alb-controller.sh
+          ./deploy/ci/install-alb-controller.sh '${{ steps.infra.outputs.alb }}'
+
+      - name: Deploy app chart (Helm)
+        env:
+          APP_IDENTITY_CLIENT_ID: ${{ steps.infra.outputs.app }}
+          KEY_VAULT_NAME:         ${{ steps.infra.outputs.kv }}
+          AZURE_TENANT_ID:        ${{ steps.infra.outputs.tenant }}
+          AGFC_ID:                ${{ steps.infra.outputs.agfc }}
+          ACR_LOGIN_SERVER:       ${{ steps.infra.outputs.acr }}
+          APP_HOSTNAME:           ${{ env.APP_HOSTNAME }}
+        run: |
+          chmod +x ./deploy/ci/deploy-app-chart.sh
+          ./deploy/ci/deploy-app-chart.sh ./helm-chart
