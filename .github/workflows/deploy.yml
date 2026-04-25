@@ -24,6 +24,15 @@ on:
         description: "Skip the build-and-push job"
         type: boolean
         default: false
+  push:
+    branches: [ci_cd-feature]
+    paths:
+      - '.github/workflows/deploy.yml'
+      - 'deploy/ci/**'
+      - 'main.bicep'
+      - 'main.resources.bicep'
+      - 'main.bicepparam'
+      - 'helm-chart/**'
 
 permissions:
   id-token: write       # required for OIDC federation
