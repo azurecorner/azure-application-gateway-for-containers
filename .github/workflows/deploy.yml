@@ -75,7 +75,7 @@ jobs:
       - name: Validate KV_CERT_OFFICER_OBJECT_ID is set
         run: |
           set -euo pipefail
-          if [[ -z "${{ vars.KV_CERT_OFFICER_OBJECT_ID }}" ]]; then
+          if [[ -z "${{ secrets.KV_CERT_OFFICER_OBJECT_ID }}" ]]; then
             echo "ERROR: repo variable KV_CERT_OFFICER_OBJECT_ID is not set." >&2
             echo "       Set it to the Entra object ID of the federated service principal so Bicep can grant Key Vault data-plane roles." >&2
             exit 1
@@ -94,7 +94,7 @@ jobs:
               resourceGroupName="${RESOURCE_GROUP_NAME}" \
               environmentName="${ENVIRONMENT_NAME}" \
               resourceSuffix="${RESOURCE_SUFFIX}" \
-              keyVaultCertificatesOfficerObjectId="${{ vars.KV_CERT_OFFICER_OBJECT_ID }}"
+              keyVaultCertificatesOfficerObjectId="${{ secrets.KV_CERT_OFFICER_OBJECT_ID }}"
 
       - name: Capture deployment outputs
         id: outputs
