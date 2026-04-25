@@ -81,6 +81,23 @@ jobs:
             exit 1
           fi
 
+      - name: Purge soft-deleted Key Vault if present
+        run: |
+          set -euo pipefail
+          # The Bicep computed vault name is take('kv-${resourceSuffix}', 24).
+          KV_NAME="$(printf 'kv-%s' "${RESOURCE_SUFFIX}" | cut -c1-24)"
+          DELETED="$(az keyvault list-deleted --query "[?name=='${KV_NAME}'] | [0].name" -o tsv 2>/dev/null || true)"
+          if [[ -n "${DELETED}" ]]; then
+            echo "Purging soft-deleted Key Vault ${KV_NAME}"
+            az keyvault purge --name "${KV_NAME}" --location "${LOCATION}" --no-wait || true
+            # Wait briefly for the purge to register
+            for i in $(seq 1 12); do
+              STILL="$(az keyvault list-deleted --query "[?name=='${KV_NAME}'] | [0].name" -o tsv 2>/dev/null || true)"
+              if [[ -z "${STILL}" ]]; then break; fi
+              sleep 10
+            done
+          fi
+
       - name: az deployment sub create
         run: |
           set -euo pipefail
