@@ -86,16 +86,18 @@ jobs:
           set -euo pipefail
           # The Bicep computed vault name is take('kv-${resourceSuffix}', 24).
           KV_NAME="$(printf 'kv-%s' "${RESOURCE_SUFFIX}" | cut -c1-24)"
-          DELETED="$(az keyvault list-deleted --query "[?name=='${KV_NAME}'] | [0].name" -o tsv 2>/dev/null || true)"
-          if [[ -n "${DELETED}" ]]; then
-            echo "Purging soft-deleted Key Vault ${KV_NAME}"
-            az keyvault purge --name "${KV_NAME}" --location "${LOCATION}" --no-wait || true
-            # Wait briefly for the purge to register
-            for i in $(seq 1 12); do
-              STILL="$(az keyvault list-deleted --query "[?name=='${KV_NAME}'] | [0].name" -o tsv 2>/dev/null || true)"
-              if [[ -z "${STILL}" ]]; then break; fi
-              sleep 10
-            done
+          echo "Looking for soft-deleted vault ${KV_NAME}"
+          az keyvault list-deleted --query "[?name=='${KV_NAME}'].{name:name,location:properties.location}" -o table || true
+
+          # Try to purge unconditionally; ignore 'not found' / non-zero exit.
+          echo "Attempting purge of ${KV_NAME} in ${LOCATION} (no-op if not soft-deleted)"
+          az keyvault purge --name "${KV_NAME}" --location "${LOCATION}" 2>&1 || echo "Purge skipped (not in soft-deleted state in ${LOCATION})."
+
+          # Confirm it is gone from the soft-deleted list.
+          REMAINING="$(az keyvault list-deleted --query "[?name=='${KV_NAME}'].name" -o tsv 2>/dev/null || true)"
+          if [[ -n "${REMAINING}" ]]; then
+            echo "WARNING: ${KV_NAME} is still listed as soft-deleted after purge attempt." >&2
+            az keyvault list-deleted --query "[?name=='${KV_NAME}']" -o json || true
           fi
 
       - name: az deployment sub create
