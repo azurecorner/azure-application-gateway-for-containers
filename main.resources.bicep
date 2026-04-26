@@ -252,7 +252,7 @@ resource kvCertificatesOfficerRole 'Microsoft.Authorization/roleAssignments@2022
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a4417e6f-fecd-4de8-b567-7b0420556985')
     principalId: keyVaultCertificatesOfficerObjectId
-    principalType: 'User'
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -262,7 +262,7 @@ resource kvSecretsOfficerRole 'Microsoft.Authorization/roleAssignments@2022-04-0
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
     principalId: keyVaultCertificatesOfficerObjectId
-    principalType: 'User'
+    principalType: 'ServicePrincipal'
   }
 }
 
