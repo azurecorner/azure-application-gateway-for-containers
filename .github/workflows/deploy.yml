@@ -225,23 +225,33 @@ jobs:
           set -euo pipefail
           AKS="${{ needs.infra.outputs.aksName }}"
           KV="${{ needs.infra.outputs.keyVaultName }}"
-          AGFC="${{ needs.infra.outputs.agfcId }}"
           ALB="${{ needs.infra.outputs.albClientId }}"
           APP="${{ needs.infra.outputs.appClientId }}"
           ACR="${{ needs.infra.outputs.acrLoginServer }}"
-          TENANT="${{ needs.infra.outputs.tenantId }}"
+
+          # Tenant comes from the Azure login context (avoids GitHub auto-mask
+          # of outputs that contain the subscription/tenant ID).
+          TENANT="$(az account show --query tenantId -o tsv)"
+
+          # AGFC ID and any missing values: query Azure directly. GitHub masks
+          # outputs containing the subscription ID, which strips them entirely
+          # from needs.<job>.outputs, so we cannot rely on those.
+          AGFC="$(az resource show \
+            -g "${RESOURCE_GROUP_NAME}" \
+            --namespace Microsoft.ServiceNetworking \
+            --resource-type trafficControllers \
+            -n "agfc-${RESOURCE_SUFFIX}" \
+            --query id -o tsv)"
 
           if [[ -z "${AKS}" ]]; then
             # Fallback when infra was skipped
             SUFFIX="${RESOURCE_SUFFIX}"
             NORM="$(echo "${SUFFIX}" | tr -d '-' | tr '[:upper:]' '[:lower:]')"
             AKS="aks-${SUFFIX}"
-            KV="$(printf 'kv-%s' "${SUFFIX}" | cut -c1-24)"
+            KV="$(az keyvault list -g "${RESOURCE_GROUP_NAME}" --query '[0].name' -o tsv)"
             ALB="$(az identity show -g "${RESOURCE_GROUP_NAME}" -n "id-alb-${SUFFIX}" --query clientId -o tsv)"
             APP="$(az identity show -g "${RESOURCE_GROUP_NAME}" -n "id-app-${SUFFIX}" --query clientId -o tsv)"
-            AGFC="$(az resource show -g "${RESOURCE_GROUP_NAME}" --namespace Microsoft.ServiceNetworking --resource-type trafficControllers -n "agfc-${SUFFIX}" --query id -o tsv)"
             ACR="$(az acr show -n "cr${ENVIRONMENT_NAME}${NORM}" --query loginServer -o tsv)"
-            TENANT="$(az account show --query tenantId -o tsv)"
           fi
 
           {
