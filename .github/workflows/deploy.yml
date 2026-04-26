@@ -72,14 +72,18 @@ jobs:
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Validate KV_CERT_OFFICER_OBJECT_ID is set
+      - name: Resolve deploying SP object ID
         run: |
           set -euo pipefail
-          if [[ -z "${{ secrets.KV_CERT_OFFICER_OBJECT_ID }}" ]]; then
-            echo "ERROR: repo variable KV_CERT_OFFICER_OBJECT_ID is not set." >&2
-            echo "       Set it to the Entra object ID of the federated service principal so Bicep can grant Key Vault data-plane roles." >&2
+          # The federated identity logs in as an Application; bicep needs the
+          # backing Service Principal's object ID for role assignments.
+          SP_OBJECT_ID="$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query id -o tsv)"
+          if [[ -z "${SP_OBJECT_ID}" ]]; then
+            echo "ERROR: failed to resolve SP object ID from AZURE_CLIENT_ID" >&2
             exit 1
           fi
+          echo "Resolved SP object ID: ${SP_OBJECT_ID}"
+          echo "KV_CERT_OFFICER_OBJECT_ID=${SP_OBJECT_ID}" >> "${GITHUB_ENV}"
 
       - name: Purge soft-deleted Key Vault if present
         run: |
@@ -113,7 +117,7 @@ jobs:
               resourceGroupName="${RESOURCE_GROUP_NAME}" \
               environmentName="${ENVIRONMENT_NAME}" \
               resourceSuffix="${RESOURCE_SUFFIX}" \
-              keyVaultCertificatesOfficerObjectId="${{ secrets.KV_CERT_OFFICER_OBJECT_ID }}"
+              keyVaultCertificatesOfficerObjectId="${KV_CERT_OFFICER_OBJECT_ID}"
 
       - name: Capture deployment outputs
         id: outputs
