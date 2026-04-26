@@ -128,7 +128,7 @@ jobs:
           OUT_JSON="$(az deployment sub show --name "${DEPLOY_NAME}" --query properties.outputs -o json)"
           echo "${OUT_JSON}"
 
-          get() { echo "${OUT_JSON}" | jq -r --arg k "$1" '.[$k].value // empty'; }
+          get() { echo "${OUT_JSON}" | jq -r --arg k "$1" 'to_entries | map(select(.key | ascii_downcase == ($k | ascii_downcase))) | .[0].value.value // empty'; }
 
           {
             echo "acrLoginServer=$(get AZURE_CONTAINER_REGISTRY_ENDPOINT)"
