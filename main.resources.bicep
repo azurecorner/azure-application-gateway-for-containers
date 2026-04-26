@@ -15,7 +15,7 @@ var aksNodeResourceGroupName = take('rg-aksnodes-${resourceSuffix}', 80)
 var agfcName = 'agfc-${resourceSuffix}'
 var albIdentityName = 'id-alb-${resourceSuffix}'
 var appIdentityName = 'id-app-${resourceSuffix}'
-var kvName = take('kv-${resourceSuffix}', 24)
+var kvName = take('kv-${uniqueString(resourceGroup().id, resourceSuffix)}-${resourceSuffix}', 24)
 var lawName = 'law-${resourceSuffix}'
 var vnetName = 'vnet-${resourceSuffix}'
 
